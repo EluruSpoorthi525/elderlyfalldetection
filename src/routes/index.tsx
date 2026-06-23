@@ -159,10 +159,14 @@ function SafeStepApp() {
 
   const runResponse = useCallback(async (incident: IncidentLog) => {
     const patientSummary = buildPatientSummary(patient);
+    toast.warning("Emergency response started", {
+      description: "Locating you, finding the nearest hospital, and notifying contacts now.",
+    });
 
     // 1. Get location
     const locId = crypto.randomUUID();
     appendAction({ id: locId, kind: "info", text: "Acquiring GPS location…", status: "pending", ts: Date.now() });
+    const locToast = toast.loading("Acquiring GPS location…");
     let coords: { lat: number; lng: number } | null = null;
     try {
       coords = await new Promise<{ lat: number; lng: number }>((res, rej) => {
@@ -178,8 +182,16 @@ function SafeStepApp() {
         text: `GPS locked: ${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
       });
       setActiveIncident((p) => p ? { ...p, location: coords ?? undefined } : p);
+      toast.success("GPS locked", {
+        id: locToast,
+        description: `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`,
+      });
     } catch {
       updateAction(locId, { status: "failed", text: "GPS unavailable — using saved home address" });
+      toast.error("GPS unavailable", {
+        id: locToast,
+        description: "Falling back to the saved home address.",
+      });
     }
 
     // 2. Find nearest hospital
@@ -187,6 +199,7 @@ function SafeStepApp() {
     if (coords) {
       const hId = crypto.randomUUID();
       appendAction({ id: hId, kind: "info", text: "Locating nearest hospital…", status: "pending", ts: Date.now() });
+      const hospToast = toast.loading("Finding the nearest hospital…");
       try {
         const { hospital: h, error: hErr } = await findHospital({ data: coords });
         if (h) {
@@ -197,11 +210,17 @@ function SafeStepApp() {
             detail: `${h.address} · ${h.distanceKm.toFixed(1)} km away`,
           });
           setActiveIncident((p) => p ? { ...p, hospital: h } : p);
+          toast.success(`Nearest hospital: ${h.name}`, {
+            id: hospToast,
+            description: `${h.address} · ${h.distanceKm.toFixed(1)} km away`,
+          });
         } else {
           updateAction(hId, { status: "failed", text: hErr ?? "No hospital found" });
+          toast.error("No hospital found nearby", { id: hospToast, description: hErr ?? undefined });
         }
       } catch {
         updateAction(hId, { status: "failed", text: "Hospital lookup failed" });
+        toast.error("Hospital lookup failed", { id: hospToast });
       }
     }
 
@@ -214,11 +233,16 @@ function SafeStepApp() {
       status: "pending",
       ts: Date.now(),
     });
+    const emsToast = toast.loading(`Dialing emergency services (${EMERGENCY_NUMBER})…`);
     await wait(1200);
     updateAction(emsId, {
       status: "ok",
       text: `Connected to ${EMERGENCY_NUMBER}`,
       detail: `Dispatched: "${patientSummary}. Fall detected at ${coords ? `${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}` : patient.address || "saved home address"}."`,
+    });
+    toast.success(`Connected to ${EMERGENCY_NUMBER}`, {
+      id: emsToast,
+      description: `Paramedics dispatched with patient details and live location.`,
     });
 
     // 4. AI voice-call each contact, SMS fallback on simulated failure
@@ -232,8 +256,8 @@ function SafeStepApp() {
         status: "pending",
         ts: Date.now(),
       });
+      const callToast = toast.loading(`AI voice-calling ${c.name}…`);
       await wait(900);
-      // Simulate: every 3rd contact fails to pick up
       const answered = i % 3 !== 2;
       if (answered) {
         updateAction(callId, {
@@ -241,8 +265,16 @@ function SafeStepApp() {
           text: `${c.name} answered`,
           detail: `AI: "Hello ${c.name.split(" ")[0]}, this is SafeStep. ${patientSummary} has fallen at ${patient.address || "home"}. Paramedics dispatched to ${hospital?.name ?? "the nearest hospital"}. ${hospital ? `Hospital address: ${hospital.address}.` : ""}"`,
         });
+        toast.success(`${c.name} answered`, {
+          id: callToast,
+          description: `AI delivered patient status and hospital info to ${c.relation}.`,
+        });
       } else {
         updateAction(callId, { status: "failed", text: `${c.name} did not answer` });
+        toast.warning(`${c.name} did not answer`, {
+          id: callToast,
+          description: "Sending an SMS with the patient status and hospital location instead.",
+        });
         const smsId = crypto.randomUUID();
         appendAction({
           id: smsId,
@@ -251,11 +283,16 @@ function SafeStepApp() {
           status: "pending",
           ts: Date.now(),
         });
+        const smsToast = toast.loading(`Sending SMS to ${c.phone}…`);
         await wait(500);
         updateAction(smsId, {
           status: "ok",
           text: `SMS delivered to ${c.name}`,
           detail: `"URGENT: ${patientSummary} fell at ${patient.address || "home"}. EMS en route to ${hospital?.name ?? "nearest hospital"}.${hospital ? ` Directions: ${hospital.mapsUrl}` : ""}"`,
+        });
+        toast.success(`SMS delivered to ${c.name}`, {
+          id: smsToast,
+          description: "Includes patient details and a Google Maps link to the hospital.",
         });
       }
     }
@@ -267,6 +304,13 @@ function SafeStepApp() {
         text: "No emergency contacts configured",
         status: "failed",
         ts: Date.now(),
+      });
+      toast.warning("No emergency contacts configured", {
+        description: "Add contacts in the right panel so SafeStep can reach them next time.",
+      });
+    } else {
+      toast.success("Emergency response complete", {
+        description: `EMS dispatched and ${contacts.length} contact${contacts.length === 1 ? "" : "s"} notified.`,
       });
     }
 
