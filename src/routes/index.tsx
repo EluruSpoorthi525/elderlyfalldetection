@@ -488,8 +488,6 @@ function SafeStepApp() {
           incident={activeIncident}
           countdown={countdown}
           inResponse={activeIncident.actions.length > 0}
-          onCancel={cancelIncident}
-          onTriggerNow={triggerEmergencyResponse}
           onClose={dismissAfterResponse}
         />
       )}
