@@ -120,7 +120,7 @@ function SafeStepApp() {
     setCountdown(15);
     beep();
     toast.error("Fall detected", {
-      description: `Confidence ${Math.round(e.confidence * 100)}%. Auto-dispatching emergency response in 15s — tap "I'm OK" to cancel.`,
+      description: `Confidence ${Math.round(e.confidence * 100)}%. Watching for recovery — if the person stands back up within 15s, no emergency is triggered.`,
       duration: 8000,
     });
   }, [beep]);
@@ -139,6 +139,28 @@ function SafeStepApp() {
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIncident, countdown]);
+
+  // Auto-recovery: if the person stands back up (torso near vertical) for ~2s
+  // during the countdown, cancel the emergency automatically.
+  const uprightSinceRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!activeIncident || activeIncident.actions.length > 0) {
+      uprightSinceRef.current = null;
+      return;
+    }
+    if (poseDetected && torsoAngle < 30) {
+      if (uprightSinceRef.current == null) uprightSinceRef.current = Date.now();
+      if (Date.now() - uprightSinceRef.current >= 2000) {
+        uprightSinceRef.current = null;
+        setActiveIncident(null);
+        toast.success("Recovery detected", {
+          description: "The person stood back up on their own — emergency response cancelled.",
+        });
+      }
+    } else {
+      uprightSinceRef.current = null;
+    }
+  }, [torsoAngle, poseDetected, activeIncident]);
 
   const appendAction = useCallback((a: ResponseAction) => {
     setActiveIncident((prev) => prev ? { ...prev, actions: [...prev.actions, a] } : prev);
@@ -321,12 +343,6 @@ function SafeStepApp() {
     });
   }, [appendAction, updateAction, findHospital, contacts, patient]);
 
-  const cancelIncident = useCallback(() => {
-    setActiveIncident(null);
-    toast.success("False alarm cancelled", {
-      description: "No emergency services or contacts were notified.",
-    });
-  }, []);
 
   const dismissAfterResponse = useCallback(() => {
     setActiveIncident(null);
@@ -466,8 +482,6 @@ function SafeStepApp() {
           incident={activeIncident}
           countdown={countdown}
           inResponse={activeIncident.actions.length > 0}
-          onCancel={cancelIncident}
-          onTriggerNow={triggerEmergencyResponse}
           onClose={dismissAfterResponse}
         />
       )}
@@ -637,13 +651,11 @@ function HistoryPanel({ events, onClear }: { events: IncidentLog[]; onClear: () 
 }
 
 function AlertModal({
-  incident, countdown, inResponse, onCancel, onTriggerNow, onClose,
+  incident, countdown, inResponse, onClose,
 }: {
   incident: IncidentLog;
   countdown: number;
   inResponse: boolean;
-  onCancel: () => void;
-  onTriggerNow: () => void;
   onClose: () => void;
 }) {
   return (
@@ -659,26 +671,15 @@ function AlertModal({
               Confidence {(incident.confidence * 100).toFixed(0)}% · {new Date(incident.timestamp).toLocaleTimeString()}
             </p>
           </div>
-          {!inResponse && (
-            <button onClick={onCancel} className="rounded-full p-2 text-muted-foreground hover:bg-background/40">
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
         {!inResponse ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">Auto-dispatching emergency response in</p>
+            <p className="text-sm text-muted-foreground">Watching for recovery — emergency response in</p>
             <p className="my-3 font-display text-6xl text-destructive">{countdown}s</p>
-            <p className="text-xs text-muted-foreground">Cancel if this was a false alarm.</p>
-            <div className="mt-6 flex justify-center gap-3">
-              <button onClick={onCancel} className="rounded-full border border-border px-5 py-2 text-sm hover:bg-background/40">
-                I'm OK — cancel
-              </button>
-              <button onClick={onTriggerNow} className="inline-flex items-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90">
-                <PhoneCall className="h-4 w-4" /> Dispatch now
-              </button>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              If the person stands back up and stays upright for 2 seconds, the alert is cancelled automatically. No action needed.
+            </p>
           </div>
         ) : (
           <div className="max-h-[70vh] overflow-y-auto p-6">
