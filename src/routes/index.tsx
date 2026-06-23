@@ -343,12 +343,6 @@ function SafeStepApp() {
     });
   }, [appendAction, updateAction, findHospital, contacts, patient]);
 
-  const cancelIncident = useCallback(() => {
-    setActiveIncident(null);
-    toast.success("False alarm cancelled", {
-      description: "No emergency services or contacts were notified.",
-    });
-  }, []);
 
   const dismissAfterResponse = useCallback(() => {
     setActiveIncident(null);
