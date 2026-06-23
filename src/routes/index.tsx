@@ -119,6 +119,10 @@ function SafeStepApp() {
     setActiveIncident(incident);
     setCountdown(15);
     beep();
+    toast.error("Fall detected", {
+      description: `Confidence ${Math.round(e.confidence * 100)}%. Auto-dispatching emergency response in 15s — tap "I'm OK" to cancel.`,
+      duration: 8000,
+    });
   }, [beep]);
 
   const { status, error, poseDetected, torsoAngle, verticalVelocity, start, stop } =
