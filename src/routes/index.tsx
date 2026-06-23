@@ -120,7 +120,7 @@ function SafeStepApp() {
     setCountdown(15);
     beep();
     toast.error("Fall detected", {
-      description: `Confidence ${Math.round(e.confidence * 100)}%. Auto-dispatching emergency response in 15s — tap "I'm OK" to cancel.`,
+      description: `Confidence ${Math.round(e.confidence * 100)}%. Watching for recovery — if the person stands back up within 15s, no emergency is triggered.`,
       duration: 8000,
     });
   }, [beep]);
