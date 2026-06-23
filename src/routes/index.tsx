@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { usePoseDetection, type FallEvent } from "@/hooks/use-pose-detection";
 import { findNearestHospital, type NearestHospital } from "@/lib/hospital.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
