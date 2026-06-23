@@ -657,13 +657,11 @@ function HistoryPanel({ events, onClear }: { events: IncidentLog[]; onClear: () 
 }
 
 function AlertModal({
-  incident, countdown, inResponse, onCancel, onTriggerNow, onClose,
+  incident, countdown, inResponse, onClose,
 }: {
   incident: IncidentLog;
   countdown: number;
   inResponse: boolean;
-  onCancel: () => void;
-  onTriggerNow: () => void;
   onClose: () => void;
 }) {
   return (
@@ -679,26 +677,15 @@ function AlertModal({
               Confidence {(incident.confidence * 100).toFixed(0)}% · {new Date(incident.timestamp).toLocaleTimeString()}
             </p>
           </div>
-          {!inResponse && (
-            <button onClick={onCancel} className="rounded-full p-2 text-muted-foreground hover:bg-background/40">
-              <X className="h-4 w-4" />
-            </button>
-          )}
         </div>
 
         {!inResponse ? (
           <div className="p-6 text-center">
-            <p className="text-sm text-muted-foreground">Auto-dispatching emergency response in</p>
+            <p className="text-sm text-muted-foreground">Watching for recovery — emergency response in</p>
             <p className="my-3 font-display text-6xl text-destructive">{countdown}s</p>
-            <p className="text-xs text-muted-foreground">Cancel if this was a false alarm.</p>
-            <div className="mt-6 flex justify-center gap-3">
-              <button onClick={onCancel} className="rounded-full border border-border px-5 py-2 text-sm hover:bg-background/40">
-                I'm OK — cancel
-              </button>
-              <button onClick={onTriggerNow} className="inline-flex items-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-medium text-destructive-foreground hover:opacity-90">
-                <PhoneCall className="h-4 w-4" /> Dispatch now
-              </button>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              If the person stands back up and stays upright for 2 seconds, the alert is cancelled automatically. No action needed.
+            </p>
           </div>
         ) : (
           <div className="max-h-[70vh] overflow-y-auto p-6">
