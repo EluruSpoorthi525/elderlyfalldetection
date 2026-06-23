@@ -140,26 +140,25 @@ function SafeStepApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIncident, countdown]);
 
-  // Auto-recovery: if the person stands back up (torso vertical) for ~2s
+  // Auto-recovery: if the person stands back up (torso near vertical) for ~2s
   // during the countdown, cancel the emergency automatically.
-  const uprightFramesRef = useRef(0);
+  const uprightSinceRef = useRef<number | null>(null);
   useEffect(() => {
     if (!activeIncident || activeIncident.actions.length > 0) {
-      uprightFramesRef.current = 0;
+      uprightSinceRef.current = null;
       return;
     }
     if (poseDetected && torsoAngle < 30) {
-      uprightFramesRef.current += 1;
-      // ~2 seconds of upright posture (assuming ~15 fps updates)
-      if (uprightFramesRef.current >= 30) {
-        uprightFramesRef.current = 0;
+      if (uprightSinceRef.current == null) uprightSinceRef.current = Date.now();
+      if (Date.now() - uprightSinceRef.current >= 2000) {
+        uprightSinceRef.current = null;
         setActiveIncident(null);
         toast.success("Recovery detected", {
-          description: "The person stood back up — emergency response cancelled.",
+          description: "The person stood back up on their own — emergency response cancelled.",
         });
       }
     } else {
-      uprightFramesRef.current = 0;
+      uprightSinceRef.current = null;
     }
   }, [torsoAngle, poseDetected, activeIncident]);
 
