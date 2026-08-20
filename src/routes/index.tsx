@@ -592,24 +592,55 @@ function Panel({ title, icon, children }: { title: string; icon: React.ReactNode
   );
 }
 
-function PatientPanel({ patient, setPatient }: { patient: Patient; setPatient: (p: Patient) => void }) {
+function Field({ label, value, onChange, placeholder, numeric }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; numeric?: boolean }) {
   return (
-    <Panel title="Patient profile" icon={<User className="h-4 w-4" />}>
-      <p className="text-xs text-muted-foreground">Used in the AI voice call & SMS sent on a fall.</p>
-      <div className="mt-3 grid gap-2">
-        <input value={patient.name} onChange={(e) => setPatient({ ...patient, name: e.target.value })}
-          placeholder="Full name (e.g. Margaret Doyle)"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.age} onChange={(e) => setPatient({ ...patient, age: e.target.value })}
-          placeholder="Age" inputMode="numeric"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.conditions} onChange={(e) => setPatient({ ...patient, conditions: e.target.value })}
-          placeholder="Conditions / allergies (e.g. diabetic, on warfarin)"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.address} onChange={(e) => setPatient({ ...patient, address: e.target.value })}
-          placeholder="Home address"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={numeric ? "numeric" : undefined}
+        maxLength={200}
+        className="mt-1 w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2"
+      />
+    </label>
+  );
+}
+
+function PatientPanel({ patient, setPatient }: { patient: Patient; setPatient: (p: Patient) => void }) {
+  const [draft, setDraft] = useState(patient);
+  useEffect(() => { setDraft(patient); }, [patient]);
+  const set = (k: keyof Patient) => (v: string) => setDraft({ ...draft, [k]: v });
+
+  return (
+    <Panel title="Patient profile & medical history" icon={<User className="h-4 w-4" />}>
+      <p className="text-xs text-muted-foreground">
+        Stored only on this device and read aloud in the AI voice call & SMS sent on a fall.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Patient name" value={draft.name} onChange={set("name")} placeholder="Margaret Doyle" />
+        <Field label="Age" value={draft.age} onChange={set("age")} placeholder="78" numeric />
+        <Field label="Blood group" value={draft.bloodGroup} onChange={set("bloodGroup")} placeholder="O+" />
+        <Field label="Known conditions" value={draft.conditions} onChange={set("conditions")} placeholder="Type 2 diabetes, hypertension" />
+        <Field label="Previous injuries" value={draft.injuries} onChange={set("injuries")} placeholder="Left hip fracture (2023)" />
+        <Field label="Current medications" value={draft.medications} onChange={set("medications")} placeholder="Warfarin, Metformin" />
+        <Field label="Allergies" value={draft.allergies} onChange={set("allergies")} placeholder="Penicillin" />
+        <Field label="Home address" value={draft.address} onChange={set("address")} placeholder="12 Rose Lane, Springfield" />
+        <Field label="Emergency contact name" value={draft.contactName} onChange={set("contactName")} placeholder="David Doyle" />
+        <Field label="Emergency contact phone" value={draft.contactPhone} onChange={set("contactPhone")} placeholder="+1 555 0134" />
+        <Field label="Relationship with patient" value={draft.contactRelation} onChange={set("contactRelation")} placeholder="Son" />
+        <Field label="Hospital / doctor contact" value={draft.doctorInfo} onChange={set("doctorInfo")} placeholder="Dr. Rao · Springfield General · +1 555 0999" />
       </div>
+      <button
+        onClick={() => {
+          setPatient(draft);
+          toast.success("Medical profile saved", { description: "Kept privately on this device — never uploaded." });
+        }}
+        className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+      >
+        <CheckCircle2 className="h-4 w-4" /> Save securely
+      </button>
     </Panel>
   );
 }
