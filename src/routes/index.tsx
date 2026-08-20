@@ -498,7 +498,7 @@ function SafeStepApp() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div className="mt-6 grid gap-6">
               <Panel title="Detection sensitivity" icon={<Activity className="h-4 w-4" />}>
                 <p className="text-sm text-muted-foreground">Higher sensitivity catches softer falls but may trigger on quick sit-downs.</p>
                 <div className="mt-4 flex items-center gap-3">
