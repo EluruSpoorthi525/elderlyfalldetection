@@ -226,5 +226,5 @@ export function usePoseDetection({ videoRef, canvasRef, sensitivity, onFall }: U
     return () => stop();
   }, [stop]);
 
-  return { status, error, poseDetected, torsoAngle, verticalVelocity, start, stop };
+  return { status, error, poseDetected, torsoAngle, verticalVelocity, start, startFile, stop };
 }
