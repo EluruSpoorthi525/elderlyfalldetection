@@ -16,6 +16,7 @@ import {
   Shield,
   ShieldAlert,
   Trash2,
+  Upload,
   User,
   X,
 } from "lucide-react";
@@ -46,9 +47,21 @@ interface Contact {
 interface Patient {
   name: string;
   age: string;
+  bloodGroup: string;
   conditions: string;
+  injuries: string;
+  medications: string;
+  allergies: string;
+  contactName: string;
+  contactPhone: string;
+  contactRelation: string;
+  doctorInfo: string;
   address: string;
 }
+const EMPTY_PATIENT: Patient = {
+  name: "", age: "", bloodGroup: "", conditions: "", injuries: "", medications: "",
+  allergies: "", contactName: "", contactPhone: "", contactRelation: "", doctorInfo: "", address: "",
+};
 type ActionKind = "ems" | "voice" | "sms" | "info";
 interface ResponseAction {
   id: string;
@@ -87,14 +100,17 @@ function SafeStepApp() {
   const [sensitivity, setSensitivity] = useState(0.5);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [events, setEvents] = useState<IncidentLog[]>([]);
-  const [patient, setPatient] = useState<Patient>({ name: "", age: "", conditions: "", address: "" });
+  const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT);
+  const [source, setSource] = useState<"camera" | "upload">("camera");
+  const [uploadName, setUploadName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeIncident, setActiveIncident] = useState<IncidentLog | null>(null);
   const [countdown, setCountdown] = useState(15);
 
   useEffect(() => {
     setContacts(loadLS<Contact[]>(LS_CONTACTS, []));
     setEvents(loadLS<IncidentLog[]>(LS_EVENTS, []));
-    setPatient(loadLS<Patient>(LS_PATIENT, { name: "", age: "", conditions: "", address: "" }));
+    setPatient({ ...EMPTY_PATIENT, ...loadLS<Partial<Patient>>(LS_PATIENT, {}) });
   }, []);
   useEffect(() => { localStorage.setItem(LS_CONTACTS, JSON.stringify(contacts)); }, [contacts]);
   useEffect(() => { localStorage.setItem(LS_EVENTS, JSON.stringify(events)); }, [events]);
@@ -125,7 +141,7 @@ function SafeStepApp() {
     });
   }, [beep]);
 
-  const { status, error, poseDetected, torsoAngle, verticalVelocity, start, stop } =
+  const { status, error, poseDetected, torsoAngle, verticalVelocity, start, startFile, stop } =
     usePoseDetection({ videoRef, canvasRef, sensitivity, onFall: handleFall });
 
   // Countdown
@@ -389,10 +405,23 @@ function SafeStepApp() {
                   <StatusDot tone={statusLabel.tone} />
                   <div>
                     <p className="text-sm font-medium">{statusLabel.text}</p>
-                    <p className="text-xs text-muted-foreground">Live camera feed · processed locally</p>
+                    <p className="text-xs text-muted-foreground">
+                      {source === "camera" ? "Live camera feed · processed locally" : uploadName ? `Uploaded video · ${uploadName}` : "Upload a video · analysed locally"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="mr-1 hidden rounded-full border border-border bg-background/40 p-1 sm:flex">
+                    {(["camera", "upload"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => { stop(); setSource(m); }}
+                        className={`rounded-full px-3 py-1.5 text-xs ${source === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        {m === "camera" ? "Live camera" : "Upload video"}
+                      </button>
+                    ))}
+                  </div>
                   {status === "monitoring" || status === "loading" ? (
                     <button
                       onClick={stop}
@@ -402,18 +431,33 @@ function SafeStepApp() {
                     </button>
                   ) : (
                     <button
-                      onClick={start}
+                      onClick={() => (source === "camera" ? start() : fileInputRef.current?.click())}
                       className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                     >
-                      <Camera className="h-4 w-4" /> Start monitoring
+                      {source === "camera" ? <Camera className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+                      {source === "camera" ? "Start monitoring" : "Choose video"}
                     </button>
                   )}
                 </div>
               </div>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setUploadName(f.name);
+                  toast.info("Analysing uploaded video", { description: f.name });
+                  startFile(f);
+                  e.target.value = "";
+                }}
+              />
               <div className="relative aspect-video w-full bg-black">
-                <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
-                <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
+                <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${source === "camera" ? "-scale-x-100" : ""}`} />
+                <canvas ref={canvasRef} className={`absolute inset-0 h-full w-full object-cover ${source === "camera" ? "-scale-x-100" : ""}`} />
                 {status === "idle" && (
                   <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-background/95 to-surface/80">
                     <div className="text-center">
@@ -422,7 +466,9 @@ function SafeStepApp() {
                       </div>
                       <p className="mt-4 font-display text-2xl">Ready when you are</p>
                       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                        Click <span className="text-foreground">Start monitoring</span> to enable your camera. Video stays on this device.
+                        {source === "camera"
+                          ? "Click Start monitoring to enable your camera. Video stays on this device."
+                          : "Choose a recorded video to run fall detection on it. The file never leaves this device."}
                       </p>
                     </div>
                   </div>
@@ -452,7 +498,7 @@ function SafeStepApp() {
               </div>
             </div>
 
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
+            <div className="mt-6 grid gap-6">
               <Panel title="Detection sensitivity" icon={<Activity className="h-4 w-4" />}>
                 <p className="text-sm text-muted-foreground">Higher sensitivity catches softer falls but may trigger on quick sit-downs.</p>
                 <div className="mt-4 flex items-center gap-3">
@@ -493,7 +539,11 @@ function buildPatientSummary(p: Patient): string {
   const bits: string[] = [];
   if (p.name) bits.push(p.name);
   if (p.age) bits.push(`${p.age} years old`);
+  if (p.bloodGroup) bits.push(`blood group ${p.bloodGroup}`);
   if (p.conditions) bits.push(p.conditions);
+  if (p.medications) bits.push(`on ${p.medications}`);
+  if (p.allergies) bits.push(`allergic to ${p.allergies}`);
+  if (p.injuries) bits.push(`previous injuries: ${p.injuries}`);
   if (bits.length === 0) return "An elderly patient";
   return bits.join(", ");
 }
@@ -542,24 +592,55 @@ function Panel({ title, icon, children }: { title: string; icon: React.ReactNode
   );
 }
 
-function PatientPanel({ patient, setPatient }: { patient: Patient; setPatient: (p: Patient) => void }) {
+function Field({ label, value, onChange, placeholder, numeric }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; numeric?: boolean }) {
   return (
-    <Panel title="Patient profile" icon={<User className="h-4 w-4" />}>
-      <p className="text-xs text-muted-foreground">Used in the AI voice call & SMS sent on a fall.</p>
-      <div className="mt-3 grid gap-2">
-        <input value={patient.name} onChange={(e) => setPatient({ ...patient, name: e.target.value })}
-          placeholder="Full name (e.g. Margaret Doyle)"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.age} onChange={(e) => setPatient({ ...patient, age: e.target.value })}
-          placeholder="Age" inputMode="numeric"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.conditions} onChange={(e) => setPatient({ ...patient, conditions: e.target.value })}
-          placeholder="Conditions / allergies (e.g. diabetic, on warfarin)"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
-        <input value={patient.address} onChange={(e) => setPatient({ ...patient, address: e.target.value })}
-          placeholder="Home address"
-          className="w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2" />
+    <label className="block">
+      <span className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        inputMode={numeric ? "numeric" : undefined}
+        maxLength={200}
+        className="mt-1 w-full rounded-md bg-input px-3 py-2 text-sm outline-none ring-primary/40 focus:ring-2"
+      />
+    </label>
+  );
+}
+
+function PatientPanel({ patient, setPatient }: { patient: Patient; setPatient: (p: Patient) => void }) {
+  const [draft, setDraft] = useState(patient);
+  useEffect(() => { setDraft(patient); }, [patient]);
+  const set = (k: keyof Patient) => (v: string) => setDraft({ ...draft, [k]: v });
+
+  return (
+    <Panel title="Patient profile & medical history" icon={<User className="h-4 w-4" />}>
+      <p className="text-xs text-muted-foreground">
+        Stored only on this device and read aloud in the AI voice call & SMS sent on a fall.
+      </p>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <Field label="Patient name" value={draft.name} onChange={set("name")} placeholder="Margaret Doyle" />
+        <Field label="Age" value={draft.age} onChange={set("age")} placeholder="78" numeric />
+        <Field label="Blood group" value={draft.bloodGroup} onChange={set("bloodGroup")} placeholder="O+" />
+        <Field label="Known conditions" value={draft.conditions} onChange={set("conditions")} placeholder="Type 2 diabetes, hypertension" />
+        <Field label="Previous injuries" value={draft.injuries} onChange={set("injuries")} placeholder="Left hip fracture (2023)" />
+        <Field label="Current medications" value={draft.medications} onChange={set("medications")} placeholder="Warfarin, Metformin" />
+        <Field label="Allergies" value={draft.allergies} onChange={set("allergies")} placeholder="Penicillin" />
+        <Field label="Home address" value={draft.address} onChange={set("address")} placeholder="12 Rose Lane, Springfield" />
+        <Field label="Emergency contact name" value={draft.contactName} onChange={set("contactName")} placeholder="David Doyle" />
+        <Field label="Emergency contact phone" value={draft.contactPhone} onChange={set("contactPhone")} placeholder="+1 555 0134" />
+        <Field label="Relationship with patient" value={draft.contactRelation} onChange={set("contactRelation")} placeholder="Son" />
+        <Field label="Hospital / doctor contact" value={draft.doctorInfo} onChange={set("doctorInfo")} placeholder="Dr. Rao · Springfield General · +1 555 0999" />
       </div>
+      <button
+        onClick={() => {
+          setPatient(draft);
+          toast.success("Medical profile saved", { description: "Kept privately on this device — never uploaded." });
+        }}
+        className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
+      >
+        <CheckCircle2 className="h-4 w-4" /> Save securely
+      </button>
     </Panel>
   );
 }
