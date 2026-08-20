@@ -44,30 +44,38 @@ export function usePoseDetection({ videoRef, canvasRef, sensitivity, onFall }: U
       streamRef.current.getTracks().forEach((t) => t.stop());
       streamRef.current = null;
     }
-    if (videoRef.current) videoRef.current.srcObject = null;
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+      videoRef.current.removeAttribute("src");
+      videoRef.current.load();
+    }
+    historyRef.current = [];
     setStatus("idle");
     setPoseDetected(false);
   }, [videoRef]);
+
+  const ensureLandmarker = useCallback(async () => {
+    if (!landmarkerRef.current) {
+      const vision = await FilesetResolver.forVisionTasks(
+        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
+      );
+      landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
+        baseOptions: {
+          modelAssetPath:
+            "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+          delegate: "GPU",
+        },
+        runningMode: "VIDEO",
+        numPoses: 1,
+      });
+    }
+  }, []);
 
   const start = useCallback(async () => {
     try {
       setError(null);
       setStatus("loading");
-
-      if (!landmarkerRef.current) {
-        const vision = await FilesetResolver.forVisionTasks(
-          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm",
-        );
-        landmarkerRef.current = await PoseLandmarker.createFromOptions(vision, {
-          baseOptions: {
-            modelAssetPath:
-              "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-            delegate: "GPU",
-          },
-          runningMode: "VIDEO",
-          numPoses: 1,
-        });
-      }
+      await ensureLandmarker();
 
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 1280, height: 720, facingMode: "user" },
@@ -76,6 +84,8 @@ export function usePoseDetection({ videoRef, canvasRef, sensitivity, onFall }: U
       streamRef.current = stream;
       const video = videoRef.current;
       if (!video) return;
+      video.removeAttribute("src");
+      video.muted = true;
       video.srcObject = stream;
       await new Promise<void>((resolve) => {
         video.onloadedmetadata = () => {
@@ -91,7 +101,42 @@ export function usePoseDetection({ videoRef, canvasRef, sensitivity, onFall }: U
       setError(msg);
       setStatus("error");
     }
-  }, [videoRef]);
+  }, [videoRef, ensureLandmarker]);
+
+  const startFile = useCallback(async (file: File) => {
+    try {
+      setError(null);
+      setStatus("loading");
+      await ensureLandmarker();
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+      }
+      const video = videoRef.current;
+      if (!video) return;
+      video.srcObject = null;
+      video.muted = true;
+      video.loop = false;
+      video.src = URL.createObjectURL(file);
+      await new Promise<void>((resolve, reject) => {
+        video.onloadedmetadata = () => {
+          video.play().then(resolve).catch(reject);
+        };
+        video.onerror = () => reject(new Error("Could not read that video file"));
+      });
+
+      lastVideoTimeRef.current = -1;
+      historyRef.current = [];
+      setStatus("monitoring");
+      loop();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : "Failed to analyse video";
+      setError(msg);
+      setStatus("error");
+    }
+  }, [videoRef, ensureLandmarker]);
+
 
   const loop = useCallback(() => {
     const video = videoRef.current;
