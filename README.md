@@ -1,26 +1,40 @@
 # Elderly Fall Detection Using AI
 
-this is owr idea make a app about it
-
-This project was built with [Lovable](https://lovable.dev).
 
 **Live app**: https://elderlyfalldetection.lovable.app
+# SafeStep – AI Fall Detection & Emergency Response
 
-## Build with Lovable
+SafeStep is an AI-powered elderly fall detection and emergency response system that uses computer vision and pose estimation to monitor individuals in real time.
 
-Continue developing this project in the [Lovable editor](https://lovable.dev/projects/b6e99a56-6933-4b02-be2e-e15b7ff7f75a).
+## Features
 
-- **Ship faster**: describe what you want to build and Lovable handles the code.
-- **Stay in sync**: every change made in Lovable is committed straight to this repository.
-- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+- Real-time fall detection
+- Live camera and video upload
+- AI-based pose detection
+- Fall confidence detection
+- Patient medical history
+- Emergency contact management
+- Patient recovery detection
+- GPS location sharing during emergencies
+- Emergency alerts and notifications
+- Fall event history
+- Caregiver monitoring dashboard
 
-## Development
+## Workflow
 
-Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
+Video Input → Pose Detection → Activity Analysis → Fall Detection → Patient Response → Recovery or Emergency → GPS & Emergency Notification
 
-```sh
-git clone <this-repository-url>
-cd <repository-name>
-npm i
-npm run dev
-```
+## Technologies
+
+- React
+- TypeScript
+- Tailwind CSS
+- Computer Vision
+- Pose Estimation
+- AI/ML
+- GPS/Geolocation
+- Emergency Notification APIs
+
+## Objective
+
+The goal of SafeStep is to provide non-intrusive elderly monitoring, reduce unnecessary emergency responses, and enable faster assistance when a genuine emergency occurs.
