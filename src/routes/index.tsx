@@ -156,27 +156,43 @@ function SafeStepApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeIncident, countdown]);
 
-  // Auto-recovery: if the person stands back up (torso near vertical) for ~2s
-  // during the countdown, cancel the emergency automatically.
+  // Auto-recovery: only cancel if the person is clearly, steadily back on their
+  // feet. Requires a grace period after the fall, a strongly vertical torso held
+  // continuously for 3s across many frames, and near-zero motion. Any single
+  // frame that is not upright resets the streak, so landmark jitter while lying
+  // down can no longer cancel a real emergency.
   const uprightSinceRef = useRef<number | null>(null);
+  const uprightFramesRef = useRef(0);
   useEffect(() => {
     if (!activeIncident || activeIncident.actions.length > 0) {
       uprightSinceRef.current = null;
+      uprightFramesRef.current = 0;
       return;
     }
-    if (poseDetected && torsoAngle < 30) {
-      if (uprightSinceRef.current == null) uprightSinceRef.current = Date.now();
-      if (Date.now() - uprightSinceRef.current >= 2000) {
-        uprightSinceRef.current = null;
-        setActiveIncident(null);
-        toast.success("Recovery detected", {
-          description: "The person stood back up on their own — emergency response cancelled.",
-        });
-      }
-    } else {
+    // Grace period: ignore the first 4s after the fall (pose is unstable then).
+    if (Date.now() - activeIncident.timestamp < 4000) {
       uprightSinceRef.current = null;
+      uprightFramesRef.current = 0;
+      return;
     }
-  }, [torsoAngle, poseDetected, activeIncident]);
+    const upright = poseDetected && torsoAngle < 22 && Math.abs(verticalVelocity) < 0.12;
+    if (!upright) {
+      uprightSinceRef.current = null;
+      uprightFramesRef.current = 0;
+      return;
+    }
+    if (uprightSinceRef.current == null) uprightSinceRef.current = Date.now();
+    uprightFramesRef.current += 1;
+    if (Date.now() - uprightSinceRef.current >= 3000 && uprightFramesRef.current >= 25) {
+      uprightSinceRef.current = null;
+      uprightFramesRef.current = 0;
+      setActiveIncident(null);
+      toast.success("Recovery confirmed", {
+        description: "The person stood back up and stayed steady — emergency response cancelled.",
+      });
+    }
+  }, [torsoAngle, poseDetected, verticalVelocity, activeIncident]);
+
 
   const appendAction = useCallback((a: ResponseAction) => {
     setActiveIncident((prev) => prev ? { ...prev, actions: [...prev.actions, a] } : prev);
