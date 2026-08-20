@@ -16,6 +16,7 @@ import {
   Shield,
   ShieldAlert,
   Trash2,
+  Upload,
   User,
   X,
 } from "lucide-react";
@@ -46,9 +47,21 @@ interface Contact {
 interface Patient {
   name: string;
   age: string;
+  bloodGroup: string;
   conditions: string;
+  injuries: string;
+  medications: string;
+  allergies: string;
+  contactName: string;
+  contactPhone: string;
+  contactRelation: string;
+  doctorInfo: string;
   address: string;
 }
+const EMPTY_PATIENT: Patient = {
+  name: "", age: "", bloodGroup: "", conditions: "", injuries: "", medications: "",
+  allergies: "", contactName: "", contactPhone: "", contactRelation: "", doctorInfo: "", address: "",
+};
 type ActionKind = "ems" | "voice" | "sms" | "info";
 interface ResponseAction {
   id: string;
@@ -87,14 +100,17 @@ function SafeStepApp() {
   const [sensitivity, setSensitivity] = useState(0.5);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [events, setEvents] = useState<IncidentLog[]>([]);
-  const [patient, setPatient] = useState<Patient>({ name: "", age: "", conditions: "", address: "" });
+  const [patient, setPatient] = useState<Patient>(EMPTY_PATIENT);
+  const [source, setSource] = useState<"camera" | "upload">("camera");
+  const [uploadName, setUploadName] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [activeIncident, setActiveIncident] = useState<IncidentLog | null>(null);
   const [countdown, setCountdown] = useState(15);
 
   useEffect(() => {
     setContacts(loadLS<Contact[]>(LS_CONTACTS, []));
     setEvents(loadLS<IncidentLog[]>(LS_EVENTS, []));
-    setPatient(loadLS<Patient>(LS_PATIENT, { name: "", age: "", conditions: "", address: "" }));
+    setPatient({ ...EMPTY_PATIENT, ...loadLS<Partial<Patient>>(LS_PATIENT, {}) });
   }, []);
   useEffect(() => { localStorage.setItem(LS_CONTACTS, JSON.stringify(contacts)); }, [contacts]);
   useEffect(() => { localStorage.setItem(LS_EVENTS, JSON.stringify(events)); }, [events]);
@@ -125,7 +141,7 @@ function SafeStepApp() {
     });
   }, [beep]);
 
-  const { status, error, poseDetected, torsoAngle, verticalVelocity, start, stop } =
+  const { status, error, poseDetected, torsoAngle, verticalVelocity, start, startFile, stop } =
     usePoseDetection({ videoRef, canvasRef, sensitivity, onFall: handleFall });
 
   // Countdown
@@ -389,10 +405,23 @@ function SafeStepApp() {
                   <StatusDot tone={statusLabel.tone} />
                   <div>
                     <p className="text-sm font-medium">{statusLabel.text}</p>
-                    <p className="text-xs text-muted-foreground">Live camera feed · processed locally</p>
+                    <p className="text-xs text-muted-foreground">
+                      {source === "camera" ? "Live camera feed · processed locally" : uploadName ? `Uploaded video · ${uploadName}` : "Upload a video · analysed locally"}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
+                  <div className="mr-1 hidden rounded-full border border-border bg-background/40 p-1 sm:flex">
+                    {(["camera", "upload"] as const).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => { stop(); setSource(m); }}
+                        className={`rounded-full px-3 py-1.5 text-xs ${source === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+                      >
+                        {m === "camera" ? "Live camera" : "Upload video"}
+                      </button>
+                    ))}
+                  </div>
                   {status === "monitoring" || status === "loading" ? (
                     <button
                       onClick={stop}
@@ -402,18 +431,33 @@ function SafeStepApp() {
                     </button>
                   ) : (
                     <button
-                      onClick={start}
+                      onClick={() => (source === "camera" ? start() : fileInputRef.current?.click())}
                       className="inline-flex items-center gap-2 rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:opacity-90"
                     >
-                      <Camera className="h-4 w-4" /> Start monitoring
+                      {source === "camera" ? <Camera className="h-4 w-4" /> : <Upload className="h-4 w-4" />}
+                      {source === "camera" ? "Start monitoring" : "Choose video"}
                     </button>
                   )}
                 </div>
               </div>
 
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  setUploadName(f.name);
+                  toast.info("Analysing uploaded video", { description: f.name });
+                  startFile(f);
+                  e.target.value = "";
+                }}
+              />
               <div className="relative aspect-video w-full bg-black">
-                <video ref={videoRef} playsInline muted className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
-                <canvas ref={canvasRef} className="absolute inset-0 h-full w-full -scale-x-100 object-cover" />
+                <video ref={videoRef} playsInline muted className={`absolute inset-0 h-full w-full object-cover ${source === "camera" ? "-scale-x-100" : ""}`} />
+                <canvas ref={canvasRef} className={`absolute inset-0 h-full w-full object-cover ${source === "camera" ? "-scale-x-100" : ""}`} />
                 {status === "idle" && (
                   <div className="absolute inset-0 grid place-items-center bg-gradient-to-br from-background/95 to-surface/80">
                     <div className="text-center">
@@ -422,7 +466,9 @@ function SafeStepApp() {
                       </div>
                       <p className="mt-4 font-display text-2xl">Ready when you are</p>
                       <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                        Click <span className="text-foreground">Start monitoring</span> to enable your camera. Video stays on this device.
+                        {source === "camera"
+                          ? "Click Start monitoring to enable your camera. Video stays on this device."
+                          : "Choose a recorded video to run fall detection on it. The file never leaves this device."}
                       </p>
                     </div>
                   </div>
@@ -493,7 +539,11 @@ function buildPatientSummary(p: Patient): string {
   const bits: string[] = [];
   if (p.name) bits.push(p.name);
   if (p.age) bits.push(`${p.age} years old`);
+  if (p.bloodGroup) bits.push(`blood group ${p.bloodGroup}`);
   if (p.conditions) bits.push(p.conditions);
+  if (p.medications) bits.push(`on ${p.medications}`);
+  if (p.allergies) bits.push(`allergic to ${p.allergies}`);
+  if (p.injuries) bits.push(`previous injuries: ${p.injuries}`);
   if (bits.length === 0) return "An elderly patient";
   return bits.join(", ");
 }
